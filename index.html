@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Agro AI</title>
+
+<style>
+body{
+font-family:sans-serif;
+background:linear-gradient(135deg,#1e3c72,#2a5298);
+color:white;
+text-align:center;
+}
+
+.card{
+background:rgba(255,255,255,0.1);
+margin:20px;
+padding:20px;
+border-radius:15px;
+width:320px;
+display:inline-block;
+}
+
+button{
+padding:10px;
+margin-top:10px;
+border:none;
+border-radius:10px;
+background:#00c6ff;
+color:white;
+cursor:pointer;
+}
+
+input,textarea{
+width:100%;
+padding:8px;
+margin-top:10px;
+border-radius:8px;
+border:none;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1>🌱 Agro AI Expert System</h1>
+
+<div class="card">
+<h2>Plant Analysis</h2>
+
+<input type="file" id="img">
+<button onclick="predict()">Analyze</button>
+
+<p id="disease"></p>
+<p id="score"></p>
+<p id="weather"></p>
+
+<h3>Treatment</h3>
+<ul id="treatment"></ul>
+
+<h3>Routine</h3>
+<ul id="routine"></ul>
+
+<h3>Prevention</h3>
+<ul id="prevention"></ul>
+
+<audio id="voice" controls style="width:100%;"></audio>
+</div>
+
+<div class="card">
+<h2>AI Chat</h2>
+
+<input id="msg" placeholder="Ask or Speak">
+
+<button onclick="chat()">Ask</button>
+<button onclick="startVoice()">🎤 Speak Tamil</button>
+
+<p id="reply"></p>
+</div>
+
+<script>
+async function predict(){
+let f=document.getElementById("img").files[0];
+let fd=new FormData();
+fd.append("image",f);
+
+let res=await fetch("/predict",{method:"POST",body:fd});
+let data=await res.json();
+
+document.getElementById("disease").innerText="Disease: "+data.disease;
+document.getElementById("score").innerText="Health Score: "+data.score+"%";
+document.getElementById("weather").innerText="Weather: "+data.weather;
+
+fill("treatment",data.treatment);
+fill("routine",data.routine);
+fill("prevention",data.prevention);
+
+let audio=document.getElementById("voice");
+audio.src=data.audio;
+audio.play();
+}
+
+function fill(id,arr){
+let ul=document.getElementById(id);
+ul.innerHTML="";
+arr.forEach(i=>{
+let li=document.createElement("li");
+li.innerText=i;
+ul.appendChild(li);
+});
+}
+
+async function chat(){
+let msg=document.getElementById("msg").value;
+
+let res=await fetch("/chat",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({msg})
+});
+
+let data=await res.json();
+document.getElementById("reply").innerText=data.reply;
+}
+
+function startVoice(){
+const rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+rec.lang="ta-IN";
+rec.start();
+
+rec.onresult=function(e){
+let text=e.results[0][0].transcript;
+document.getElementById("msg").value=text;
+chat();
+}
+}
+</script>
+
+</body>
+</html>
