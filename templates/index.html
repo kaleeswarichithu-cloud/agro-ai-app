@@ -12,121 +12,21 @@ background:linear-gradient(135deg,#0f172a,#1e40af,#06b6d4);
 color:white;
 min-height:100vh;
 }
-
-/* SNOW */
-canvas{
-position:fixed;
-top:0;
-left:0;
-z-index:-1;
-}
-
-/* HEADER */
-.header{
-text-align:center;
-padding:18px;
-font-size:26px;
-font-weight:bold;
-letter-spacing:1px;
-}
-
-/* LAYOUT */
-.container{
-display:flex;
-flex-wrap:wrap;
-justify-content:center;
-gap:20px;
-padding:20px;
-}
-
-/* CARD */
-.card{
-width:420px;
-background:rgba(255,255,255,0.12);
-backdrop-filter:blur(25px);
-border-radius:18px;
-padding:18px;
-box-shadow:0 10px 40px rgba(0,0,0,0.5);
-transition:0.3s;
-}
-.card:hover{
-transform:translateY(-5px);
-}
-
-/* MEDIA */
+canvas{position:fixed;top:0;left:0;z-index:-1;}
+.header{text-align:center;padding:18px;font-size:26px;font-weight:bold;}
+.container{display:flex;flex-wrap:wrap;justify-content:center;gap:20px;padding:20px;}
+.card{width:420px;background:rgba(255,255,255,0.12);backdrop-filter:blur(25px);
+border-radius:18px;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,0.5);}
 .media{text-align:center;}
-video,img{
-width:90%;
-border-radius:12px;
-margin-top:10px;
-}
-
-/* INPUT */
-input{
-width:100%;
-padding:8px;
-margin-top:8px;
-border-radius:10px;
-border:none;
-outline:none;
-}
-
-/* RESULT */
-.result{
-margin-top:10px;
-background:rgba(0,0,0,0.4);
-padding:12px;
-border-radius:12px;
-white-space:pre-line;
-height:180px;
-overflow:auto;
-}
-
-/* BUTTON */
-button{
-padding:8px 14px;
-margin-top:8px;
-border:none;
-border-radius:12px;
-background:linear-gradient(135deg,#7c3aed,#06b6d4);
-color:white;
-cursor:pointer;
-transition:0.2s;
-}
-button:hover{
-opacity:0.9;
-}
-button:active{
-transform:scale(0.92);
-}
-
-/* CHAT */
-.chat{
-height:250px;
-overflow:auto;
-background:rgba(0,0,0,0.3);
-border-radius:10px;
-padding:6px;
-}
-.msg{
-padding:8px;
-margin:6px;
-border-radius:10px;
-max-width:80%;
-}
-.user{
-background:#3b82f6;
-margin-left:auto;
-text-align:right;
-}
-.bot{
-background:rgba(255,255,255,0.2);
-}
-
-/* AUDIO */
-audio{
-margin-top:10px;
-}
+video,img{width:90%;border-radius:12px;margin-top:10px;}
+input{width:100%;padding:8px;margin-top:8px;border-radius:10px;border:none;}
+.result{margin-top:10px;background:rgba(0,0,0,0.4);padding:12px;border-radius:12px;height:180px;overflow:auto;}
+button{padding:8px 14px;margin-top:8px;border:none;border-radius:12px;
+background:linear-gradient(135deg,#7c3aed,#06b6d4);color:white;cursor:pointer;}
+.chat{height:250px;overflow:auto;background:rgba(0,0,0,0.3);border-radius:10px;padding:6px;}
+.msg{padding:8px;margin:6px;border-radius:10px;max-width:80%;}
+.user{background:#3b82f6;margin-left:auto;text-align:right;}
+.bot{background:rgba(255,255,255,0.2);}
 </style>
 </head>
 
@@ -138,23 +38,16 @@ margin-top:10px;
 
 <div class="container">
 
-<!-- LEFT -->
 <div class="card">
 <h3>📷 Leaf Detection</h3>
 
 <input type="file" id="img">
-
-<div class="media">
-<img id="preview">
-</div>
+<div class="media"><img id="preview"></div>
 
 <button onclick="analyze()">Analyze</button>
 <button onclick="startCamera()">Camera</button>
 
-<div class="media">
-<video id="video" autoplay></video>
-</div>
-
+<div class="media"><video id="video" autoplay></video></div>
 <button onclick="capture()">Capture</button>
 
 <div id="result" class="result"></div>
@@ -165,7 +58,6 @@ margin-top:10px;
 <audio id="player" controls style="width:100%"></audio>
 </div>
 
-<!-- RIGHT -->
 <div class="card">
 <h3>🤖 Chatbot</h3>
 
@@ -180,8 +72,8 @@ margin-top:10px;
 
 <script>
 
-/* 🌐 IMPORTANT: ADD YOUR NGROK LINK */
-const BASE_URL = "https://junko-unenumerated-myesha.ngrok-free.dev";
+/* ✅ FIX: NO BASE URL NEEDED */
+const BASE_URL = "";
 
 /* SNOW */
 let c=document.getElementById("bg");
@@ -211,7 +103,7 @@ draw();
 /* AUDIO */
 function playAudio(url){
 let player=document.getElementById("player");
-player.src=BASE_URL + url;
+player.src=url;   // ✅ FIXED
 player.play().catch(()=>{});
 }
 
@@ -227,7 +119,7 @@ result.innerText="Analyzing...";
 let f=new FormData();
 f.append("file",img.files[0]);
 
-fetch(BASE_URL + "/predict",{method:"POST",body:f})
+fetch("/predict",{method:"POST",body:f})   // ✅ FIXED
 .then(r=>r.json())
 .then(d=>{
 result.innerText=d.text;
@@ -252,7 +144,7 @@ canvas.toBlob(b=>{
 let f=new FormData();
 f.append("file",new File([b],"img.jpg"));
 
-fetch(BASE_URL + "/predict",{method:"POST",body:f})
+fetch("/predict",{method:"POST",body:f})   // ✅ FIXED
 .then(r=>r.json())
 .then(d=>{
 result.innerText=d.text;
@@ -267,7 +159,7 @@ stream.getTracks().forEach(t=>t.stop());
 function send(){
 chat.innerHTML+=`<div class="msg user">${msg.value}</div>`;
 
-fetch(BASE_URL + "/chat",{
+fetch("/chat",{   // ✅ FIXED
 method:"POST",
 headers:{"Content-Type":"application/json"},
 body:JSON.stringify({msg:msg.value})
@@ -282,20 +174,9 @@ playAudio(d.audio);
 msg.value="";
 }
 
-/* VOICE */
-function voice(){
-let r=new webkitSpeechRecognition();
-r.lang="ta-IN";
-r.onresult=e=>{
-msg.value=e.results[0][0].transcript;
-send();
-};
-r.start();
-}
-
 /* WEATHER */
 function getWeather(){
-fetch(BASE_URL + "/weather")
+fetch("/weather")   // ✅ FIXED
 .then(r=>r.json())
 .then(d=>{
 weather.innerText=d.text;
