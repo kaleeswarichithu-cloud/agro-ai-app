@@ -3,78 +3,123 @@ import os, cv2, numpy as np, uuid
 from gtts import gTTS
 import requests
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static", template_folder="templates")
 
-# Folder Setup
 UPLOAD_FOLDER = "static/uploads"
 AUDIO_FOLDER = "static/audio"
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(AUDIO_FOLDER, exist_ok=True)
 
-# ✅ PROFESSIONAL PLANT & DISEASE DATA
 disease_data = {
-    "Healthy": {
-        "tamil": "செடி மிகவும் ஆரோக்கியமாக உள்ளது.",
-        "cause": "சரியான பராமரிப்பு.",
-        "treatment": "தொடர்ந்து இதேபோல் பராமரிக்கவும்.",
-        "prevention": "வாரத்திற்கு ஒருமுறை இயற்கை உரம் இடவும்."
-    },
     "Leaf Spot": {
-        "tamil": "இலை புள்ளி நோய் கண்டறியப்பட்டது.",
-        "cause": "பூஞ்சை காளான் தொற்று.",
-        "treatment": "வேப்ப எண்ணெய் (Neem Oil) கரைசலை இலைகளில் தெளிக்கவும்.",
-        "prevention": "செடிகளுக்கு இடையில் போதிய இடைவெளி விடவும்."
+        "tamil": "இலை புள்ளி நோய்",
+        "cause": "பூஞ்சை தாக்கம் காரணமாக ஏற்படும்",
+        "treatment": "நீம் எண்ணெய் பயன்படுத்தவும்",
+        "prevention": "மேலிருந்து தண்ணீர் ஊற்ற வேண்டாம்"
+    },
+    "Healthy": {
+        "tamil": "ஆரோக்கியமான செடி",
+        "cause": "நோய் இல்லை",
+        "treatment": "சிகிச்சை தேவையில்லை",
+        "prevention": "சரியான பராமரிப்பு செய்யவும்"
     }
 }
 
+def predict_disease(path):
+    img = cv2.imread(path)
+    if img is None:
+        return "Healthy"
+    img = cv2.resize(img,(224,224))
+    green = np.mean(img[:,:,1])
+    return "Healthy" if green > 130 else "Leaf Spot"
+
+# ✅ SAFE VOICE (NO CRASH)
 def make_voice(text):
     try:
         filename = f"{uuid.uuid4()}.mp3"
         path = os.path.join(AUDIO_FOLDER, filename)
-        # Clean text for TTS (remove emojis)
-        clean_text = text.replace("🌿", "").replace("📌", "").replace("💊", "").replace("🛡️", "")
-        gTTS(text=clean_text, lang="ta").save(path)
+        gTTS(text=text, lang="ta").save(path)
         return f"/static/audio/{filename}"
-    except: return ""
+    except:
+        return ""
 
 @app.route("/")
 def home():
     return render_template("index.html")
 
-@app.route("/chat", methods=["POST"])
-def chat():
-    data = request.get_json()
-    q = data.get("msg", "").lower()
-    
-    # ✅ PROFESSIONAL PLANT LOGIC RESPONSES
-    if any(word in q for word in ["water", "தண்ணி", "லிட்டர்", "liter"]):
-        r = "ஒரு சிறிய செடிக்கு தினமும் 0.5 லிட்டர் தண்ணீரும், பெரிய செடிக்கு 1.5 முதல் 2 லிட்டர் தண்ணீரும் தேவைப்படும். மண் காய்ந்திருப்பதை உறுதி செய்து நீர் ஊற்றவும்."
-    elif any(word in q for word in ["sun", "வெயில்", "ஒளி"]):
-        r = "பெரும்பாலான செடிகளுக்கு தினமும் 6 முதல் 8 மணிநேரம் காலை நேர சூரிய ஒளி அவசியம். நண்பகல் வெயிலை தவிர்க்கவும்."
-    elif any(word in q for word in ["fertilizer", "உரம்", "nutrient"]):
-        r = "15 நாட்களுக்கு ஒருமுறை மண்புழு உரம் (Vermicompost) அல்லது தொழு உரம் பயன்படுத்தினால் செடி செழிப்பாக வளரும்."
-    elif any(word in q for word in ["growth", "வளர்ச்சி"]):
-        r = "செடியின் வளர்ச்சிக்கு நைட்ரஜன் நிறைந்த உரங்கள் மற்றும் முறையான கிளை கத்தரிப்பு (Pruning) அவசியம்."
-    else:
-        r = "மன்னிக்கவும், விவசாயம் அல்லது செடி பராமரிப்பு குறித்து கேளுங்கள் (உதாரணம்: தண்ணீர், உரம், வெயில்)."
-        
-    return jsonify({"reply": r, "audio": make_voice(r)})
-
 @app.route("/predict", methods=["POST"])
 def predict():
-    if 'file' not in request.files: return jsonify({"text": "Error"})
-    file = request.files['file']
-    path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}_{file.filename}")
-    file.save(path)
-    
-    # Simple color-based logic for demo accuracy
-    img = cv2.imread(path)
-    avg_red = np.mean(img[:,:,2])
-    res_key = "Leaf Spot" if avg_red > 110 else "Healthy"
-    
-    info = disease_data[res_key]
-    text = f"🌿 {info['tamil']}\n\n📌 காரணம்: {info['cause']}\n💊 தீர்வு: {info['treatment']}\n🛡️ தடுப்பு: {info['prevention']}"
-    return jsonify({"text": text, "audio": make_voice(text)})
+    try:
+        file = request.files["file"]
+        filename = str(uuid.uuid4()) + ".jpg"
+        path = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(path)
+
+        d = predict_disease(path)
+        info = disease_data[d]
+
+        text = f"""
+🌿 {info['tamil']}
+
+காரணம்:
+{info['cause']}
+
+தீர்வு:
+{info['treatment']}
+
+தடுப்பு:
+{info['prevention']}
+"""
+
+        return jsonify({
+            "text": text,
+            "audio": make_voice(text)
+        })
+    except:
+        return jsonify({"text": "Error in prediction", "audio": ""})
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    try:
+        q = request.json["msg"].lower()
+
+        if "water" in q or "தண்ணி" in q:
+            r = "ஒரு நாளைக்கு 0.5 முதல் 1 லிட்டர் தண்ணீர் போதுமானது."
+        elif "sun" in q or "வெயில்" in q:
+            r = "ஒரு நாளைக்கு 6 முதல் 8 மணி நேரம் வெயில் அவசியம்."
+        elif "fertilizer" in q or "உரம்" in q:
+            r = "10 முதல் 15 நாட்களுக்கு ஒருமுறை உரம் பயன்படுத்தவும்."
+        else:
+            r = "தண்ணீர், வெயில், உரம் பற்றி கேளுங்கள்."
+
+        return jsonify({
+            "reply": r,
+            "audio": make_voice(r)
+        })
+    except:
+        return jsonify({"reply": "Error", "audio": ""})
+
+@app.route("/weather")
+def weather():
+    try:
+        data = requests.get(
+            "https://api.open-meteo.com/v1/forecast?latitude=13.08&longitude=80.27&current_weather=true",
+            timeout=3
+        ).json()
+
+        temp = data["current_weather"]["temperature"]
+        text = f"இப்போது வெப்பநிலை {temp}°C"
+
+        return jsonify({
+            "text": text,
+            "audio": make_voice(text)
+        })
+    except:
+        return jsonify({
+            "text": "வானிலை கிடைக்கவில்லை",
+            "audio": ""
+        })
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(host="0.0.0.0", port=10000)
