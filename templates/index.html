@@ -1,80 +1,305 @@
-from flask import Flask, render_template, request, jsonify
-import os, cv2, numpy as np, uuid
-from gtts import gTTS
-import requests
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Agro AI Expert</title>
 
-app = Flask(__name__)
-
-# Folder Setup
-UPLOAD_FOLDER = "static/uploads"
-AUDIO_FOLDER = "static/audio"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(AUDIO_FOLDER, exist_ok=True)
-
-# ✅ PROFESSIONAL PLANT & DISEASE DATA
-disease_data = {
-    "Healthy": {
-        "tamil": "செடி மிகவும் ஆரோக்கியமாக உள்ளது.",
-        "cause": "சரியான பராமரிப்பு.",
-        "treatment": "தொடர்ந்து இதேபோல் பராமரிக்கவும்.",
-        "prevention": "வாரத்திற்கு ஒருமுறை இயற்கை உரம் இடவும்."
-    },
-    "Leaf Spot": {
-        "tamil": "இலை புள்ளி நோய் கண்டறியப்பட்டது.",
-        "cause": "பூஞ்சை காளான் தொற்று.",
-        "treatment": "வேப்ப எண்ணெய் (Neem Oil) கரைசலை இலைகளில் தெளிக்கவும்.",
-        "prevention": "செடிகளுக்கு இடையில் போதிய இடைவெளி விடவும்."
-    }
+<style>
+body{
+margin:0;
+font-family:'Segoe UI';
+background:linear-gradient(135deg,#0f172a,#1e40af,#06b6d4);
+color:white;
+min-height:100vh;
 }
 
-def make_voice(text):
-    try:
-        filename = f"{uuid.uuid4()}.mp3"
-        path = os.path.join(AUDIO_FOLDER, filename)
-        # Clean text for TTS (remove emojis)
-        clean_text = text.replace("🌿", "").replace("📌", "").replace("💊", "").replace("🛡️", "")
-        gTTS(text=clean_text, lang="ta").save(path)
-        return f"/static/audio/{filename}"
-    except: return ""
+canvas{
+position:fixed;
+top:0;
+left:0;
+z-index:-1;
+}
 
-@app.route("/")
-def home():
-    return render_template("index.html")
+.header{
+text-align:center;
+padding:18px;
+font-size:26px;
+font-weight:bold;
+}
 
-@app.route("/chat", methods=["POST"])
-def chat():
-    data = request.get_json()
-    q = data.get("msg", "").lower()
-    
-    # ✅ PROFESSIONAL PLANT LOGIC RESPONSES
-    if any(word in q for word in ["water", "தண்ணி", "லிட்டர்", "liter"]):
-        r = "ஒரு சிறிய செடிக்கு தினமும் 0.5 லிட்டர் தண்ணீரும், பெரிய செடிக்கு 1.5 முதல் 2 லிட்டர் தண்ணீரும் தேவைப்படும். மண் காய்ந்திருப்பதை உறுதி செய்து நீர் ஊற்றவும்."
-    elif any(word in q for word in ["sun", "வெயில்", "ஒளி"]):
-        r = "பெரும்பாலான செடிகளுக்கு தினமும் 6 முதல் 8 மணிநேரம் காலை நேர சூரிய ஒளி அவசியம். நண்பகல் வெயிலை தவிர்க்கவும்."
-    elif any(word in q for word in ["fertilizer", "உரம்", "nutrient"]):
-        r = "15 நாட்களுக்கு ஒருமுறை மண்புழு உரம் (Vermicompost) அல்லது தொழு உரம் பயன்படுத்தினால் செடி செழிப்பாக வளரும்."
-    elif any(word in q for word in ["growth", "வளர்ச்சி"]):
-        r = "செடியின் வளர்ச்சிக்கு நைட்ரஜன் நிறைந்த உரங்கள் மற்றும் முறையான கிளை கத்தரிப்பு (Pruning) அவசியம்."
-    else:
-        r = "மன்னிக்கவும், விவசாயம் அல்லது செடி பராமரிப்பு குறித்து கேளுங்கள் (உதாரணம்: தண்ணீர், உரம், வெயில்)."
-        
-    return jsonify({"reply": r, "audio": make_voice(r)})
+.container{
+display:flex;
+flex-wrap:wrap;
+justify-content:center;
+gap:20px;
+padding:20px;
+}
 
-@app.route("/predict", methods=["POST"])
-def predict():
-    if 'file' not in request.files: return jsonify({"text": "Error"})
-    file = request.files['file']
-    path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}_{file.filename}")
-    file.save(path)
-    
-    # Simple color-based logic for demo accuracy
-    img = cv2.imread(path)
-    avg_red = np.mean(img[:,:,2])
-    res_key = "Leaf Spot" if avg_red > 110 else "Healthy"
-    
-    info = disease_data[res_key]
-    text = f"🌿 {info['tamil']}\n\n📌 காரணம்: {info['cause']}\n💊 தீர்வு: {info['treatment']}\n🛡️ தடுப்பு: {info['prevention']}"
-    return jsonify({"text": text, "audio": make_voice(text)})
+.card{
+width:420px;
+background:rgba(255,255,255,0.12);
+backdrop-filter:blur(25px);
+border-radius:18px;
+padding:18px;
+box-shadow:0 10px 40px rgba(0,0,0,0.5);
+}
 
-if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+.media{text-align:center;}
+video,img{
+width:90%;
+border-radius:12px;
+margin-top:10px;
+}
+
+input{
+width:100%;
+padding:8px;
+margin-top:8px;
+border-radius:10px;
+border:none;
+}
+
+.result{
+margin-top:10px;
+background:rgba(0,0,0,0.4);
+padding:12px;
+border-radius:12px;
+white-space:pre-line;
+height:180px;
+overflow:auto;
+}
+
+button{
+padding:8px 14px;
+margin-top:8px;
+border:none;
+border-radius:12px;
+background:linear-gradient(135deg,#7c3aed,#06b6d4);
+color:white;
+cursor:pointer;
+}
+
+.chat{
+height:250px;
+overflow:auto;
+background:rgba(0,0,0,0.3);
+border-radius:10px;
+padding:6px;
+}
+
+.msg{
+padding:8px;
+margin:6px;
+border-radius:10px;
+max-width:80%;
+}
+
+.user{
+background:#3b82f6;
+margin-left:auto;
+}
+
+.bot{
+background:rgba(255,255,255,0.2);
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="bg"></canvas>
+
+<div class="header">🌱 Agro AI Expert Pro</div>
+
+<div class="container">
+
+<div class="card">
+<h3>📷 Leaf Detection</h3>
+
+<input type="file" id="imgInp">
+
+<div class="media">
+<img id="preview">
+</div>
+
+<button onclick="analyze()">Analyze</button>
+<button onclick="startCamera()">Camera</button>
+
+<div class="media">
+<video id="video" autoplay></video>
+</div>
+
+<button onclick="capture()">Capture</button>
+
+<div id="result" class="result"></div>
+
+<button onclick="getWeather()">Weather</button>
+<p id="weather"></p>
+
+<audio id="player" controls style="width:100%"></audio>
+</div>
+
+<div class="card">
+<h3>🤖 Chatbot</h3>
+
+<div id="chat" class="chat"></div>
+
+<input id="msg" placeholder="Ask something...">
+<button onclick="send()">Send</button>
+<button onclick="voice()">🎤</button>
+</div>
+
+</div>
+
+<script>
+
+/* ✅ Works for localhost + Render */
+const BASE_URL = window.location.origin;
+
+/* SNOW EFFECT */
+let c=document.getElementById("bg");
+let ctx=c.getContext("2d");
+c.width=window.innerWidth;
+c.height=window.innerHeight;
+
+let p=[];
+for(let i=0;i<50;i++){
+p.push({x:Math.random()*c.width,y:Math.random()*c.height});
+}
+
+function draw(){
+ctx.clearRect(0,0,c.width,c.height);
+ctx.fillStyle="white";
+p.forEach(a=>{
+ctx.beginPath();
+ctx.arc(a.x,a.y,2,0,Math.PI*2);
+ctx.fill();
+a.y+=0.6;
+if(a.y>c.height)a.y=0;
+});
+requestAnimationFrame(draw);
+}
+draw();
+
+/* AUDIO */
+function playAudio(url){
+if(!url) return;
+let player=document.getElementById("player");
+player.src=url;
+player.play().catch(()=>{});
+}
+
+/* IMAGE PREVIEW */
+imgInp.onchange=()=>{
+preview.src=URL.createObjectURL(imgInp.files[0]);
+}
+
+/* ANALYZE */
+function analyze(){
+result.innerText="Analyzing...";
+
+let file=imgInp.files[0];
+if(!file) return alert("Select image!");
+
+let f=new FormData();
+f.append("file",file);
+
+fetch(BASE_URL + "/predict",{method:"POST",body:f})
+.then(r=>r.json())
+.then(d=>{
+result.innerText=d.text;
+playAudio(d.audio);
+})
+.catch(()=>{
+result.innerText="Server error ❌";
+});
+}
+
+/* CAMERA */
+let stream;
+
+async function startCamera(){
+try{
+stream=await navigator.mediaDevices.getUserMedia({video:true});
+video.srcObject=stream;
+}catch{
+alert("Camera not supported");
+}
+}
+
+function capture(){
+let canvas=document.createElement("canvas");
+canvas.width=video.videoWidth;
+canvas.height=video.videoHeight;
+canvas.getContext("2d").drawImage(video,0,0);
+
+canvas.toBlob(b=>{
+let f=new FormData();
+f.append("file",new File([b],"img.jpg"));
+
+fetch(BASE_URL + "/predict",{method:"POST",body:f})
+.then(r=>r.json())
+.then(d=>{
+result.innerText=d.text;
+playAudio(d.audio);
+});
+});
+
+if(stream) stream.getTracks().forEach(t=>t.stop());
+}
+
+/* CHAT */
+function send(){
+if(!msg.value) return;
+
+chat.innerHTML+=`<div class="msg user">${msg.value}</div>`;
+
+fetch(BASE_URL + "/chat",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({msg:msg.value})
+})
+.then(r=>r.json())
+.then(d=>{
+chat.innerHTML+=`<div class="msg bot">${d.reply}</div>`;
+chat.scrollTop=chat.scrollHeight;
+playAudio(d.audio);
+});
+
+msg.value="";
+}
+
+/* VOICE INPUT */
+function voice(){
+let SpeechRecognition=window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if(!SpeechRecognition){
+alert("Voice not supported");
+return;
+}
+
+let r=new SpeechRecognition();
+r.lang="ta-IN";
+
+r.onresult=e=>{
+msg.value=e.results[0][0].transcript;
+send();
+};
+
+r.start();
+}
+
+/* WEATHER */
+function getWeather(){
+fetch(BASE_URL + "/weather")
+.then(r=>r.json())
+.then(d=>{
+weather.innerText=d.text;
+playAudio(d.audio);
+});
+}
+
+</script>
+
+</body>
+</html>
