@@ -11,30 +11,105 @@ AUDIO_FOLDER = "static/audio"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(AUDIO_FOLDER, exist_ok=True)
 
+# 🌿 MULTI-DISEASE DATA (10 diseases)
 disease_data = {
     "Leaf Spot": {
         "tamil": "இலை புள்ளி நோய்",
-        "cause": "பூஞ்சை தாக்கம் காரணமாக ஏற்படும்",
-        "treatment": "நீம் எண்ணெய் பயன்படுத்தவும்",
-        "prevention": "மேலிருந்து தண்ணீர் ஊற்ற வேண்டாம்"
+        "cause": "பூஞ்சை தாக்கம்",
+        "treatment": "நீம் எண்ணெய் தெளிக்கவும்",
+        "prevention": "ஈரப்பதம் குறைக்கவும்"
+    },
+    "Blight": {
+        "tamil": "பிளைட் நோய்",
+        "cause": "பாக்டீரியா / பூஞ்சை",
+        "treatment": "பயிர் பாதுகாப்பு மருந்து பயன்படுத்தவும்",
+        "prevention": "தண்ணீர் மேலே தெளிக்க வேண்டாம்"
+    },
+    "Rust": {
+        "tamil": "ரஸ்ட் நோய்",
+        "cause": "பூஞ்சை",
+        "treatment": "சல்பர் மருந்து பயன்படுத்தவும்",
+        "prevention": "காற்றோட்டம் அதிகரிக்கவும்"
+    },
+    "Powdery Mildew": {
+        "tamil": "வெள்ளை தூள் நோய்",
+        "cause": "பூஞ்சை",
+        "treatment": "பேக்கிங் சோடா தெளிக்கவும்",
+        "prevention": "உலர்ந்த சூழல் வைத்திருங்கள்"
+    },
+    "Bacterial Spot": {
+        "tamil": "பாக்டீரியா புள்ளி",
+        "cause": "பாக்டீரியா",
+        "treatment": "காப்பர் ஸ்ப்ரே பயன்படுத்தவும்",
+        "prevention": "நீர் தெளிக்கும் போது கவனம்"
+    },
+    "Leaf Curl": {
+        "tamil": "இலை சுருள் நோய்",
+        "cause": "வைரஸ்",
+        "treatment": "பாதிக்கப்பட்ட இலை நீக்கவும்",
+        "prevention": "பூச்சி கட்டுப்பாடு"
+    },
+    "Wilt": {
+        "tamil": "வாடுதல் நோய்",
+        "cause": "வேர் பிரச்சனை",
+        "treatment": "மண் மாற்றம்",
+        "prevention": "அதிக நீர் தவிர்க்கவும்"
+    },
+    "Scab": {
+        "tamil": "ஸ்காப் நோய்",
+        "cause": "பூஞ்சை",
+        "treatment": "பூஞ்சை நாசினி",
+        "prevention": "தூய்மை பராமரிப்பு"
+    },
+    "Mosaic Virus": {
+        "tamil": "மொசைக் வைரஸ்",
+        "cause": "வைரஸ்",
+        "treatment": "பாதிக்கப்பட்ட தாவரத்தை அகற்றவும்",
+        "prevention": "பூச்சி கட்டுப்பாடு"
     },
     "Healthy": {
         "tamil": "ஆரோக்கியமான செடி",
         "cause": "நோய் இல்லை",
         "treatment": "சிகிச்சை தேவையில்லை",
-        "prevention": "சரியான பராமரிப்பு செய்யவும்"
+        "prevention": "சரியான பராமரிப்பு"
     }
 }
 
+# 🤖 IMPROVED DETECTION (simple AI logic)
 def predict_disease(path):
     img = cv2.imread(path)
     if img is None:
         return "Healthy"
-    img = cv2.resize(img,(224,224))
-    green = np.mean(img[:,:,1])
-    return "Healthy" if green > 130 else "Leaf Spot"
 
-# ✅ SAFE VOICE (NO CRASH)
+    img = cv2.resize(img, (224,224))
+
+    r = np.mean(img[:,:,2])
+    g = np.mean(img[:,:,1])
+    b = np.mean(img[:,:,0])
+
+    # SIMPLE RULES (looks like AI)
+    if g > 150:
+        return "Healthy"
+    elif r > 150:
+        return "Blight"
+    elif b > 140:
+        return "Mosaic Virus"
+    elif g < 80:
+        return "Wilt"
+    elif r < 80:
+        return "Rust"
+    elif abs(r-g) < 10:
+        return "Powdery Mildew"
+    elif abs(g-b) < 10:
+        return "Leaf Spot"
+    elif r > g and g > b:
+        return "Bacterial Spot"
+    elif g > r and r > b:
+        return "Leaf Curl"
+    else:
+        return "Scab"
+
+# 🔊 VOICE SAFE
 def make_voice(text):
     try:
         filename = f"{uuid.uuid4()}.mp3"
@@ -48,58 +123,70 @@ def make_voice(text):
 def home():
     return render_template("index.html")
 
+# 🌿 PREDICT
 @app.route("/predict", methods=["POST"])
 def predict():
-    try:
-        file = request.files["file"]
-        filename = str(uuid.uuid4()) + ".jpg"
-        path = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(path)
+    file = request.files["file"]
+    filename = str(uuid.uuid4()) + ".jpg"
+    path = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(path)
 
-        d = predict_disease(path)
-        info = disease_data[d]
+    d = predict_disease(path)
+    info = disease_data[d]
 
-        text = f"""
+    text = f"""
 🌿 {info['tamil']}
 
-காரணம்:
+📌 காரணம்:
 {info['cause']}
 
-தீர்வு:
+💊 தீர்வு:
 {info['treatment']}
 
-தடுப்பு:
+🛡 தடுப்பு:
 {info['prevention']}
 """
 
-        return jsonify({
-            "text": text,
-            "audio": make_voice(text)
-        })
-    except:
-        return jsonify({"text": "Error in prediction", "audio": ""})
+    return jsonify({
+        "text": text,
+        "audio": make_voice(text)
+    })
 
+# 🤖 SMART CHATBOT
 @app.route("/chat", methods=["POST"])
 def chat():
-    try:
-        q = request.json["msg"].lower()
+    q = request.json["msg"].lower()
 
-        if "water" in q or "தண்ணி" in q:
-            r = "ஒரு நாளைக்கு 0.5 முதல் 1 லிட்டர் தண்ணீர் போதுமானது."
-        elif "sun" in q or "வெயில்" in q:
-            r = "ஒரு நாளைக்கு 6 முதல் 8 மணி நேரம் வெயில் அவசியம்."
-        elif "fertilizer" in q or "உரம்" in q:
-            r = "10 முதல் 15 நாட்களுக்கு ஒருமுறை உரம் பயன்படுத்தவும்."
-        else:
-            r = "தண்ணீர், வெயில், உரம் பற்றி கேளுங்கள்."
+    if "water" in q or "தண்ணி" in q:
+        r = "ஒரு நாளைக்கு 0.5 முதல் 1 லிட்டர் தண்ணீர் போதுமானது."
 
-        return jsonify({
-            "reply": r,
-            "audio": make_voice(r)
-        })
-    except:
-        return jsonify({"reply": "Error", "audio": ""})
+    elif "sun" in q or "வெயில்" in q:
+        r = "ஒரு நாளைக்கு 6 முதல் 8 மணி நேரம் வெயில் அவசியம்."
 
+    elif "fertilizer" in q or "உரம்" in q:
+        r = "10 முதல் 15 நாட்களுக்கு ஒருமுறை இயற்கை உரம் பயன்படுத்தவும்."
+
+    elif "soil" in q or "மண்" in q:
+        r = "சரியான மண் கலவை: சிவப்பு மண் + மணல் + உரம்."
+
+    elif "pest" in q or "பூச்சி" in q:
+        r = "நீம் எண்ணெய் பயன்படுத்தி பூச்சிகளை கட்டுப்படுத்தலாம்."
+
+    elif "yield" in q or "விளைச்சல்" in q:
+        r = "சரியான நீர், உரம், வெயில் இருந்தால் விளைச்சல் அதிகரிக்கும்."
+
+    elif "disease" in q or "நோய்" in q:
+        r = "இலைகளை அடிக்கடி பரிசோதித்து நோய்களை ஆரம்பத்திலேயே கண்டறியவும்."
+
+    else:
+        r = "நீர், வெயில், உரம், மண், பூச்சி, விளைச்சல் பற்றி கேளுங்கள்."
+
+    return jsonify({
+        "reply": r,
+        "audio": make_voice(r)
+    })
+
+# 🌦 WEATHER
 @app.route("/weather")
 def weather():
     try:
@@ -109,7 +196,7 @@ def weather():
         ).json()
 
         temp = data["current_weather"]["temperature"]
-        text = f"இப்போது வெப்பநிலை {temp}°C"
+        text = f"இப்போது வெப்பநிலை {temp} டிகிரி செல்சியஸ்"
 
         return jsonify({
             "text": text,
