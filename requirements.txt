@@ -4,3 +4,4 @@ numpy
 opencv-python-headless
 gTTS
 requests
+pillow
