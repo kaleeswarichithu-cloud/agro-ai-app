@@ -1,134 +1,80 @@
-<!DOCTYPE html>
-<html lang="ta">
-<head>
-    <meta charset="UTF-8">
-    <title>Agro AI Expert Pro</title>
-    <style>
-        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg,#0f172a,#1e40af,#06b6d4); color: white; min-height: 100vh; }
-        .header { text-align: center; padding: 25px; font-size: 30px; font-weight: bold; }
-        .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 25px; padding: 20px; }
-        .card { width: 400px; background: rgba(255,255,255,0.1); backdrop-filter: blur(15px); border-radius: 20px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); }
-        .media img, .media video { width: 100%; border-radius: 15px; margin-top: 10px; display: none; }
-        .result { margin-top: 15px; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; height: 160px; overflow-y: auto; white-space: pre-wrap; }
-        button { padding: 10px 20px; margin-top: 10px; border: none; border-radius: 10px; background: #7c3aed; color: white; cursor: pointer; font-weight: bold; }
-        .chat-area { height: 250px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
-        .msg { padding: 8px 12px; margin: 5px 0; border-radius: 10px; max-width: 80%; }
-        .user { background: #3b82f6; align-self: flex-end; margin-left: auto; }
-        .bot { background: rgba(255,255,255,0.2); }
-        input { width: 100%; padding: 10px; border-radius: 10px; border: none; margin-top: 10px; box-sizing: border-box; }
-    </style>
-</head>
-<body>
+from flask import Flask, render_template, request, jsonify
+import os, cv2, numpy as np, uuid
+from gtts import gTTS
+import requests
 
-<div class="header">🌱 Agro AI Expert Pro</div>
+app = Flask(__name__)
 
-<div class="container">
-    <div class="card">
-        <h3>📷 Leaf Analysis</h3>
-        <input type="file" id="leafInput" accept="image/*">
-        <div class="media"><img id="preview"></div>
-        <button onclick="analyze()">Analyze Leaf</button>
-        <button onclick="startCam()">Use Camera</button>
-        <div class="media"><video id="video" autoplay></video></div>
-        <button id="capBtn" style="display:none;" onclick="capture()">Take Photo</button>
-        <div id="resBox" class="result">Analysis results will appear here...</div>
-        <button onclick="fetchWeather()">Check Weather</button>
-        <p id="weatherInfo"></p>
-        <audio id="audioPlayer" controls style="width:100%; margin-top:10px; display:none;"></audio>
-    </div>
+# Folder Setup
+UPLOAD_FOLDER = "static/uploads"
+AUDIO_FOLDER = "static/audio"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(AUDIO_FOLDER, exist_ok=True)
 
-    <div class="card">
-        <h3>🤖 Agro Chatbot</h3>
-        <div id="chatBox" class="chat-area"></div>
-        <input id="chatInp" placeholder="Ask about water, sun, or fertilizer...">
-        <button onclick="sendMessage()" style="width:100%;">Send Message</button>
-    </div>
-</div>
-
-<script>
-    const player = document.getElementById("audioPlayer");
-
-    function play(url) {
-        if(!url) return;
-        player.src = url;
-        player.style.display = "block";
-        player.play();
+# ✅ PROFESSIONAL PLANT & DISEASE DATA
+disease_data = {
+    "Healthy": {
+        "tamil": "செடி மிகவும் ஆரோக்கியமாக உள்ளது.",
+        "cause": "சரியான பராமரிப்பு.",
+        "treatment": "தொடர்ந்து இதேபோல் பராமரிக்கவும்.",
+        "prevention": "வாரத்திற்கு ஒருமுறை இயற்கை உரம் இடவும்."
+    },
+    "Leaf Spot": {
+        "tamil": "இலை புள்ளி நோய் கண்டறியப்பட்டது.",
+        "cause": "பூஞ்சை காளான் தொற்று.",
+        "treatment": "வேப்ப எண்ணெய் (Neem Oil) கரைசலை இலைகளில் தெளிக்கவும்.",
+        "prevention": "செடிகளுக்கு இடையில் போதிய இடைவெளி விடவும்."
     }
+}
 
-    // Image Analysis
-    document.getElementById("leafInput").onchange = (e) => {
-        const img = document.getElementById("preview");
-        img.src = URL.createObjectURL(e.target.files[0]);
-        img.style.display = "block";
-    };
+def make_voice(text):
+    try:
+        filename = f"{uuid.uuid4()}.mp3"
+        path = os.path.join(AUDIO_FOLDER, filename)
+        # Clean text for TTS (remove emojis)
+        clean_text = text.replace("🌿", "").replace("📌", "").replace("💊", "").replace("🛡️", "")
+        gTTS(text=clean_text, lang="ta").save(path)
+        return f"/static/audio/{filename}"
+    except: return ""
 
-    async function analyze() {
-        const file = document.getElementById("leafInput").files[0];
-        if(!file) return alert("Select an image!");
-        const fd = new FormData();
-        fd.append("file", file);
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json()
+    q = data.get("msg", "").lower()
+    
+    # ✅ PROFESSIONAL PLANT LOGIC RESPONSES
+    if any(word in q for word in ["water", "தண்ணி", "லிட்டர்", "liter"]):
+        r = "ஒரு சிறிய செடிக்கு தினமும் 0.5 லிட்டர் தண்ணீரும், பெரிய செடிக்கு 1.5 முதல் 2 லிட்டர் தண்ணீரும் தேவைப்படும். மண் காய்ந்திருப்பதை உறுதி செய்து நீர் ஊற்றவும்."
+    elif any(word in q for word in ["sun", "வெயில்", "ஒளி"]):
+        r = "பெரும்பாலான செடிகளுக்கு தினமும் 6 முதல் 8 மணிநேரம் காலை நேர சூரிய ஒளி அவசியம். நண்பகல் வெயிலை தவிர்க்கவும்."
+    elif any(word in q for word in ["fertilizer", "உரம்", "nutrient"]):
+        r = "15 நாட்களுக்கு ஒருமுறை மண்புழு உரம் (Vermicompost) அல்லது தொழு உரம் பயன்படுத்தினால் செடி செழிப்பாக வளரும்."
+    elif any(word in q for word in ["growth", "வளர்ச்சி"]):
+        r = "செடியின் வளர்ச்சிக்கு நைட்ரஜன் நிறைந்த உரங்கள் மற்றும் முறையான கிளை கத்தரிப்பு (Pruning) அவசியம்."
+    else:
+        r = "மன்னிக்கவும், விவசாயம் அல்லது செடி பராமரிப்பு குறித்து கேளுங்கள் (உதாரணம்: தண்ணீர், உரம், வெயில்)."
         
-        document.getElementById("resBox").innerText = "Processing...";
-        const res = await fetch("/predict", { method: "POST", body: fd });
-        const data = await res.json();
-        document.getElementById("resBox").innerText = data.text;
-        play(data.audio);
-    }
+    return jsonify({"reply": r, "audio": make_voice(r)})
 
-    // Camera Logic
-    let stream;
-    async function startCam() {
-        const vid = document.getElementById("video");
-        vid.style.display = "block";
-        document.getElementById("capBtn").style.display = "block";
-        stream = await navigator.mediaDevices.getUserMedia({video: true});
-        vid.srcObject = stream;
-    }
+@app.route("/predict", methods=["POST"])
+def predict():
+    if 'file' not in request.files: return jsonify({"text": "Error"})
+    file = request.files['file']
+    path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}_{file.filename}")
+    file.save(path)
+    
+    # Simple color-based logic for demo accuracy
+    img = cv2.imread(path)
+    avg_red = np.mean(img[:,:,2])
+    res_key = "Leaf Spot" if avg_red > 110 else "Healthy"
+    
+    info = disease_data[res_key]
+    text = f"🌿 {info['tamil']}\n\n📌 காரணம்: {info['cause']}\n💊 தீர்வு: {info['treatment']}\n🛡️ தடுப்பு: {info['prevention']}"
+    return jsonify({"text": text, "audio": make_voice(text)})
 
-    async function capture() {
-        const vid = document.getElementById("video");
-        const canvas = document.createElement("canvas");
-        canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
-        canvas.getContext("2d").drawImage(vid, 0, 0);
-        
-        canvas.toBlob(async (blob) => {
-            const fd = new FormData();
-            fd.append("file", new File([blob], "shot.jpg"));
-            const res = await fetch("/predict", { method: "POST", body: fd });
-            const data = await res.json();
-            document.getElementById("resBox").innerText = data.text;
-            play(data.audio);
-            stream.getTracks().forEach(t => t.stop());
-            vid.style.display = "none";
-            document.getElementById("capBtn").style.display = "none";
-        });
-    }
-
-    // Chatbot Logic
-    async function sendMessage() {
-        const inp = document.getElementById("chatInp");
-        const box = document.getElementById("chatBox");
-        if(!inp.value) return;
-
-        box.innerHTML += `<div class="msg user">${inp.value}</div>`;
-        const res = await fetch("/chat", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({msg: inp.value})
-        });
-        const data = await res.json();
-        box.innerHTML += `<div class="msg bot">${data.reply}</div>`;
-        box.scrollTop = box.scrollHeight;
-        play(data.audio);
-        inp.value = "";
-    }
-
-    async function fetchWeather() {
-        const res = await fetch("/weather");
-        const data = await res.json();
-        document.getElementById("weatherInfo").innerText = data.text;
-        play(data.audio);
-    }
-</script>
-</body>
-</html>
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)
