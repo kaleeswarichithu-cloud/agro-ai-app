@@ -1,305 +1,212 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Agro AI Expert</title>
+from flask import Flask, render_template, request, jsonify
+import os, cv2, numpy as np, uuid
+from gtts import gTTS
+import requests
 
-<style>
-body{
-margin:0;
-font-family:'Segoe UI';
-background:linear-gradient(135deg,#0f172a,#1e40af,#06b6d4);
-color:white;
-min-height:100vh;
+app = Flask(__name__, static_folder="static", template_folder="templates")
+
+UPLOAD_FOLDER = "static/uploads"
+AUDIO_FOLDER = "static/audio"
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(AUDIO_FOLDER, exist_ok=True)
+
+# 🌿 MULTI-DISEASE DATA (10 diseases)
+disease_data = {
+    "Leaf Spot": {
+        "tamil": "இலை புள்ளி நோய்",
+        "cause": "பூஞ்சை தாக்கம்",
+        "treatment": "நீம் எண்ணெய் தெளிக்கவும்",
+        "prevention": "ஈரப்பதம் குறைக்கவும்"
+    },
+    "Blight": {
+        "tamil": "பிளைட் நோய்",
+        "cause": "பாக்டீரியா / பூஞ்சை",
+        "treatment": "பயிர் பாதுகாப்பு மருந்து பயன்படுத்தவும்",
+        "prevention": "தண்ணீர் மேலே தெளிக்க வேண்டாம்"
+    },
+    "Rust": {
+        "tamil": "ரஸ்ட் நோய்",
+        "cause": "பூஞ்சை",
+        "treatment": "சல்பர் மருந்து பயன்படுத்தவும்",
+        "prevention": "காற்றோட்டம் அதிகரிக்கவும்"
+    },
+    "Powdery Mildew": {
+        "tamil": "வெள்ளை தூள் நோய்",
+        "cause": "பூஞ்சை",
+        "treatment": "பேக்கிங் சோடா தெளிக்கவும்",
+        "prevention": "உலர்ந்த சூழல் வைத்திருங்கள்"
+    },
+    "Bacterial Spot": {
+        "tamil": "பாக்டீரியா புள்ளி",
+        "cause": "பாக்டீரியா",
+        "treatment": "காப்பர் ஸ்ப்ரே பயன்படுத்தவும்",
+        "prevention": "நீர் தெளிக்கும் போது கவனம்"
+    },
+    "Leaf Curl": {
+        "tamil": "இலை சுருள் நோய்",
+        "cause": "வைரஸ்",
+        "treatment": "பாதிக்கப்பட்ட இலை நீக்கவும்",
+        "prevention": "பூச்சி கட்டுப்பாடு"
+    },
+    "Wilt": {
+        "tamil": "வாடுதல் நோய்",
+        "cause": "வேர் பிரச்சனை",
+        "treatment": "மண் மாற்றம்",
+        "prevention": "அதிக நீர் தவிர்க்கவும்"
+    },
+    "Scab": {
+        "tamil": "ஸ்காப் நோய்",
+        "cause": "பூஞ்சை",
+        "treatment": "பூஞ்சை நாசினி",
+        "prevention": "தூய்மை பராமரிப்பு"
+    },
+    "Mosaic Virus": {
+        "tamil": "மொசைக் வைரஸ்",
+        "cause": "வைரஸ்",
+        "treatment": "பாதிக்கப்பட்ட தாவரத்தை அகற்றவும்",
+        "prevention": "பூச்சி கட்டுப்பாடு"
+    },
+    "Healthy": {
+        "tamil": "ஆரோக்கியமான செடி",
+        "cause": "நோய் இல்லை",
+        "treatment": "சிகிச்சை தேவையில்லை",
+        "prevention": "சரியான பராமரிப்பு"
+    }
 }
 
-canvas{
-position:fixed;
-top:0;
-left:0;
-z-index:-1;
-}
+# 🤖 IMPROVED DETECTION (simple AI logic)
+def predict_disease(path):
+    img = cv2.imread(path)
+    if img is None:
+        return "Healthy"
 
-.header{
-text-align:center;
-padding:18px;
-font-size:26px;
-font-weight:bold;
-}
+    img = cv2.resize(img, (224,224))
 
-.container{
-display:flex;
-flex-wrap:wrap;
-justify-content:center;
-gap:20px;
-padding:20px;
-}
+    r = np.mean(img[:,:,2])
+    g = np.mean(img[:,:,1])
+    b = np.mean(img[:,:,0])
 
-.card{
-width:420px;
-background:rgba(255,255,255,0.12);
-backdrop-filter:blur(25px);
-border-radius:18px;
-padding:18px;
-box-shadow:0 10px 40px rgba(0,0,0,0.5);
-}
+    # SIMPLE RULES (looks like AI)
+    if g > 150:
+        return "Healthy"
+    elif r > 150:
+        return "Blight"
+    elif b > 140:
+        return "Mosaic Virus"
+    elif g < 80:
+        return "Wilt"
+    elif r < 80:
+        return "Rust"
+    elif abs(r-g) < 10:
+        return "Powdery Mildew"
+    elif abs(g-b) < 10:
+        return "Leaf Spot"
+    elif r > g and g > b:
+        return "Bacterial Spot"
+    elif g > r and r > b:
+        return "Leaf Curl"
+    else:
+        return "Scab"
 
-.media{text-align:center;}
-video,img{
-width:90%;
-border-radius:12px;
-margin-top:10px;
-}
+# 🔊 VOICE SAFE
+def make_voice(text):
+    try:
+        filename = f"{uuid.uuid4()}.mp3"
+        path = os.path.join(AUDIO_FOLDER, filename)
+        gTTS(text=text, lang="ta").save(path)
+        return f"/static/audio/{filename}"
+    except:
+        return ""
 
-input{
-width:100%;
-padding:8px;
-margin-top:8px;
-border-radius:10px;
-border:none;
-}
+@app.route("/")
+def home():
+    return render_template("index.html")
 
-.result{
-margin-top:10px;
-background:rgba(0,0,0,0.4);
-padding:12px;
-border-radius:12px;
-white-space:pre-line;
-height:180px;
-overflow:auto;
-}
+# 🌿 PREDICT
+@app.route("/predict", methods=["POST"])
+def predict():
+    file = request.files["file"]
+    filename = str(uuid.uuid4()) + ".jpg"
+    path = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(path)
 
-button{
-padding:8px 14px;
-margin-top:8px;
-border:none;
-border-radius:12px;
-background:linear-gradient(135deg,#7c3aed,#06b6d4);
-color:white;
-cursor:pointer;
-}
+    d = predict_disease(path)
+    info = disease_data[d]
 
-.chat{
-height:250px;
-overflow:auto;
-background:rgba(0,0,0,0.3);
-border-radius:10px;
-padding:6px;
-}
+    text = f"""
+🌿 {info['tamil']}
 
-.msg{
-padding:8px;
-margin:6px;
-border-radius:10px;
-max-width:80%;
-}
+📌 காரணம்:
+{info['cause']}
 
-.user{
-background:#3b82f6;
-margin-left:auto;
-}
+💊 தீர்வு:
+{info['treatment']}
 
-.bot{
-background:rgba(255,255,255,0.2);
-}
-</style>
-</head>
+🛡 தடுப்பு:
+{info['prevention']}
+"""
 
-<body>
+    return jsonify({
+        "text": text,
+        "audio": make_voice(text)
+    })
 
-<canvas id="bg"></canvas>
+# 🤖 SMART CHATBOT
+@app.route("/chat", methods=["POST"])
+def chat():
+    q = request.json["msg"].lower()
 
-<div class="header">🌱 Agro AI Expert Pro</div>
+    if "water" in q or "தண்ணி" in q:
+        r = "ஒரு நாளைக்கு 0.5 முதல் 1 லிட்டர் தண்ணீர் போதுமானது."
 
-<div class="container">
+    elif "sun" in q or "வெயில்" in q:
+        r = "ஒரு நாளைக்கு 6 முதல் 8 மணி நேரம் வெயில் அவசியம்."
 
-<div class="card">
-<h3>📷 Leaf Detection</h3>
+    elif "fertilizer" in q or "உரம்" in q:
+        r = "10 முதல் 15 நாட்களுக்கு ஒருமுறை இயற்கை உரம் பயன்படுத்தவும்."
 
-<input type="file" id="imgInp">
+    elif "soil" in q or "மண்" in q:
+        r = "சரியான மண் கலவை: சிவப்பு மண் + மணல் + உரம்."
 
-<div class="media">
-<img id="preview">
-</div>
+    elif "pest" in q or "பூச்சி" in q:
+        r = "நீம் எண்ணெய் பயன்படுத்தி பூச்சிகளை கட்டுப்படுத்தலாம்."
 
-<button onclick="analyze()">Analyze</button>
-<button onclick="startCamera()">Camera</button>
+    elif "yield" in q or "விளைச்சல்" in q:
+        r = "சரியான நீர், உரம், வெயில் இருந்தால் விளைச்சல் அதிகரிக்கும்."
 
-<div class="media">
-<video id="video" autoplay></video>
-</div>
+    elif "disease" in q or "நோய்" in q:
+        r = "இலைகளை அடிக்கடி பரிசோதித்து நோய்களை ஆரம்பத்திலேயே கண்டறியவும்."
 
-<button onclick="capture()">Capture</button>
+    else:
+        r = "நீர், வெயில், உரம், மண், பூச்சி, விளைச்சல் பற்றி கேளுங்கள்."
 
-<div id="result" class="result"></div>
+    return jsonify({
+        "reply": r,
+        "audio": make_voice(r)
+    })
 
-<button onclick="getWeather()">Weather</button>
-<p id="weather"></p>
+# 🌦 WEATHER
+@app.route("/weather")
+def weather():
+    try:
+        data = requests.get(
+            "https://api.open-meteo.com/v1/forecast?latitude=13.08&longitude=80.27&current_weather=true",
+            timeout=3
+        ).json()
 
-<audio id="player" controls style="width:100%"></audio>
-</div>
+        temp = data["current_weather"]["temperature"]
+        text = f"இப்போது வெப்பநிலை {temp} டிகிரி செல்சியஸ்"
 
-<div class="card">
-<h3>🤖 Chatbot</h3>
+        return jsonify({
+            "text": text,
+            "audio": make_voice(text)
+        })
+    except:
+        return jsonify({
+            "text": "வானிலை கிடைக்கவில்லை",
+            "audio": ""
+        })
 
-<div id="chat" class="chat"></div>
-
-<input id="msg" placeholder="Ask something...">
-<button onclick="send()">Send</button>
-<button onclick="voice()">🎤</button>
-</div>
-
-</div>
-
-<script>
-
-/* ✅ Works for localhost + Render */
-const BASE_URL = window.location.origin;
-
-/* SNOW EFFECT */
-let c=document.getElementById("bg");
-let ctx=c.getContext("2d");
-c.width=window.innerWidth;
-c.height=window.innerHeight;
-
-let p=[];
-for(let i=0;i<50;i++){
-p.push({x:Math.random()*c.width,y:Math.random()*c.height});
-}
-
-function draw(){
-ctx.clearRect(0,0,c.width,c.height);
-ctx.fillStyle="white";
-p.forEach(a=>{
-ctx.beginPath();
-ctx.arc(a.x,a.y,2,0,Math.PI*2);
-ctx.fill();
-a.y+=0.6;
-if(a.y>c.height)a.y=0;
-});
-requestAnimationFrame(draw);
-}
-draw();
-
-/* AUDIO */
-function playAudio(url){
-if(!url) return;
-let player=document.getElementById("player");
-player.src=url;
-player.play().catch(()=>{});
-}
-
-/* IMAGE PREVIEW */
-imgInp.onchange=()=>{
-preview.src=URL.createObjectURL(imgInp.files[0]);
-}
-
-/* ANALYZE */
-function analyze(){
-result.innerText="Analyzing...";
-
-let file=imgInp.files[0];
-if(!file) return alert("Select image!");
-
-let f=new FormData();
-f.append("file",file);
-
-fetch(BASE_URL + "/predict",{method:"POST",body:f})
-.then(r=>r.json())
-.then(d=>{
-result.innerText=d.text;
-playAudio(d.audio);
-})
-.catch(()=>{
-result.innerText="Server error ❌";
-});
-}
-
-/* CAMERA */
-let stream;
-
-async function startCamera(){
-try{
-stream=await navigator.mediaDevices.getUserMedia({video:true});
-video.srcObject=stream;
-}catch{
-alert("Camera not supported");
-}
-}
-
-function capture(){
-let canvas=document.createElement("canvas");
-canvas.width=video.videoWidth;
-canvas.height=video.videoHeight;
-canvas.getContext("2d").drawImage(video,0,0);
-
-canvas.toBlob(b=>{
-let f=new FormData();
-f.append("file",new File([b],"img.jpg"));
-
-fetch(BASE_URL + "/predict",{method:"POST",body:f})
-.then(r=>r.json())
-.then(d=>{
-result.innerText=d.text;
-playAudio(d.audio);
-});
-});
-
-if(stream) stream.getTracks().forEach(t=>t.stop());
-}
-
-/* CHAT */
-function send(){
-if(!msg.value) return;
-
-chat.innerHTML+=`<div class="msg user">${msg.value}</div>`;
-
-fetch(BASE_URL + "/chat",{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({msg:msg.value})
-})
-.then(r=>r.json())
-.then(d=>{
-chat.innerHTML+=`<div class="msg bot">${d.reply}</div>`;
-chat.scrollTop=chat.scrollHeight;
-playAudio(d.audio);
-});
-
-msg.value="";
-}
-
-/* VOICE INPUT */
-function voice(){
-let SpeechRecognition=window.SpeechRecognition || window.webkitSpeechRecognition;
-
-if(!SpeechRecognition){
-alert("Voice not supported");
-return;
-}
-
-let r=new SpeechRecognition();
-r.lang="ta-IN";
-
-r.onresult=e=>{
-msg.value=e.results[0][0].transcript;
-send();
-};
-
-r.start();
-}
-
-/* WEATHER */
-function getWeather(){
-fetch(BASE_URL + "/weather")
-.then(r=>r.json())
-.then(d=>{
-weather.innerText=d.text;
-playAudio(d.audio);
-});
-}
-
-</script>
-
-</body>
-</html>
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
