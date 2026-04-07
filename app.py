@@ -5,86 +5,65 @@ import requests
 
 app = Flask(__name__)
 
+# Configuration
 UPLOAD_FOLDER = "static/uploads"
 AUDIO_FOLDER = "static/audio"
-
-# Ensure directories exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(AUDIO_FOLDER, exist_ok=True)
 
-# ✅ UPDATED DATA (Added 'Healthy' to prevent crashes)
+# ✅ Disease Data (Includes 'Healthy' to prevent crashes)
 disease_data = {
     "Healthy": {
         "tamil": "செடி ஆரோக்கியமாக உள்ளது",
-        "cause": "சரியான பராமரிப்பு",
-        "treatment": "தொடர்ந்து கவனித்து வாருங்கள்",
-        "prevention": "இதேபோல் பராமரிக்கவும்"
+        "cause": "சரியான பராமரிப்பு மற்றும் நீர் மேலாண்மை.",
+        "treatment": "இதேபோல் தொடர்ந்து பராமரிக்கவும்.",
+        "prevention": "வழக்கமான கண்காணிப்பு அவசியம்."
     },
     "Leaf Spot": {
         "tamil": "இலை புள்ளி நோய்",
-        "cause": "பூஞ்சை தாக்கம் காரணமாக ஏற்படும்",
-        "treatment": "நீம் எண்ணெய் அல்லது பூஞ்சை நாசினி பயன்படுத்தவும்",
-        "prevention": "இலை மேலிருந்து தண்ணீர் ஊற்ற வேண்டாம்"
+        "cause": "பூஞ்சை தாக்கம் காரணமாக ஏற்படும்.",
+        "treatment": "நீம் எண்ணெய் அல்லது பூஞ்சை நாசினி பயன்படுத்தவும்.",
+        "prevention": "இலைகளின் மேல் நேரடியாகத் தண்ணீர் ஊற்றுவதைத் தவிர்க்கவும்."
     },
     "Powdery Mildew": {
-        "tamil": "பொடிமை பூஞ்சை",
-        "cause": "சலப்பு பூஞ்சை வகை தாக்கம்",
-        "treatment": "சல்பர் அல்லது பூஞ்சை நாசினி தெளிக்கவும்",
-        "prevention": "காற்றோட்டம் அதிகரிக்கவும்"
-    },
-    "Rust": {
-        "tamil": "துரு நோய்",
-        "cause": "பூஞ்சை வளர்ச்சி",
-        "treatment": "காப்பர் ஸ்ப்ரே பயன்படுத்தவும்",
-        "prevention": "பழைய இலைகளை அகற்றவும்"
+        "tamil": "சாம்பல் நோய்",
+        "cause": "ஈரப்பதம் மற்றும் பூஞ்சை தொற்று.",
+        "treatment": "சல்பர் கலந்த நாசினியைத் தெளிக்கவும்.",
+        "prevention": "செடிகளுக்கு இடையே போதிய காற்றோட்டத்தை உறுதி செய்யவும்."
     },
     "Blight": {
-        "tamil": "இலை அழுகல்",
-        "cause": "பாக்டீரியா/பூஞ்சை தாக்கம்",
-        "treatment": "பரிந்துரைக்கப்பட்ட நாசினி உபயோகிக்கவும்",
-        "prevention": "நீர் தேங்குவதை தவிர்க்கவும்"
-    },
-    "Wilt": {
-        "tamil": "உலர்வு நோய்",
-        "cause": "வேர் பாதிப்பு",
-        "treatment": "மண் சுத்திகரிப்பு செய்யவும்",
-        "prevention": "நல்ல வடிகால் அமைக்கவும்"
+        "tamil": "இலை கருகல் நோய்",
+        "cause": "பாக்டீரியா அல்லது பூஞ்சை தொற்று.",
+        "treatment": "பாதிக்கப்பட்ட இலைகளை அகற்றிவிட்டு நாசினி தெளிக்கவும்.",
+        "prevention": "மண்ணில் நீர் தேங்காமல் பார்த்துக் கொள்ளவும்."
     }
 }
 
 def predict_disease(path):
     img = cv2.imread(path)
-    if img is None:
-        return "Healthy"
-    
+    if img is None: return "Healthy"
     img = cv2.resize(img, (224, 224))
     avg_green = np.mean(img[:, :, 1])
     avg_red = np.mean(img[:, :, 2])
-    avg_blue = np.mean(img[:, :, 0])
-
-    # Simple logic for color detection
+    
+    # Simple Logic: If red tones outweigh green, it's likely a spot/blight
     if avg_green > 130 and avg_red < 110:
         return "Healthy"
     elif avg_red > avg_green:
         return "Leaf Spot"
-    elif avg_blue > 120:
-        return "Powdery Mildew"
     else:
-        # Avoid crashing by picking a valid key
-        keys = list(disease_data.keys())
-        return np.random.choice(keys)
+        return "Blight"
 
 def make_voice(text):
     try:
         filename = f"{uuid.uuid4()}.mp3"
         path = os.path.join(AUDIO_FOLDER, filename)
-        # Strip emoji/special chars for cleaner TTS
+        # Remove emojis for cleaner TTS
         clean_text = text.replace("🌿", "").replace("📌", "").replace("💊", "").replace("🛡️", "")
         tts = gTTS(text=clean_text, lang="ta")
         tts.save(path)
         return f"/static/audio/{filename}"
-    except Exception as e:
-        print(f"TTS Error: {e}")
+    except:
         return ""
 
 @app.route("/")
@@ -93,66 +72,43 @@ def home():
 
 @app.route("/predict", methods=["POST"])
 def predict():
-    if "file" not in request.files:
-        return jsonify({"text": "கோப்பு எதுவும் கிடைக்கவில்லை"})
-    
-    file = request.files["file"]
-    unique_filename = f"{uuid.uuid4()}_{file.filename}"
-    path = os.path.join(UPLOAD_FOLDER, unique_filename)
+    if 'file' not in request.files:
+        return jsonify({"text": "கோப்பு கிடைக்கவில்லை"})
+    file = request.files['file']
+    path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}_{file.filename}")
     file.save(path)
-
-    disease_name = predict_disease(path)
-    info = disease_data.get(disease_name, disease_data["Healthy"])
-
-    response_text = f"🌿 {info['tamil']}\n\n📌 காரணம்: {info['cause']}\n💊 தீர்வு: {info['treatment']}\n🛡️ தடுப்பு: {info['prevention']}"
     
-    return jsonify({
-        "text": response_text,
-        "audio": make_voice(response_text)
-    })
+    result_key = predict_disease(path)
+    info = disease_data.get(result_key, disease_data["Healthy"])
+    
+    response_text = f"🌿 {info['tamil']}\n\n📌 காரணம்: {info['cause']}\n💊 தீர்வு: {info['treatment']}\n🛡️ தடுப்பு: {info['prevention']}"
+    return jsonify({"text": response_text, "audio": make_voice(response_text)})
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    # Fix for common frontend JSON issues
     data = request.get_json()
-    if not data or "msg" not in data:
-        return jsonify({"reply": "மன்னிக்கவும், புரியவில்லை."})
-        
-    q = data["msg"].lower()
-
+    q = data.get("msg", "").lower()
+    
     if any(word in q for word in ["water", "தண்ணி", "நீர்"]):
-        r = "ஒரு நாளைக்கு 0.5 முதல் 1 லிட்டர் தண்ணீர் போதுமானது."
-    elif any(word in q for word in ["sun", "வெயில்", "சூரிய"]):
-        r = "ஒரு நாளைக்கு 6-8 மணி நேரம் வெயில் அவசியம்."
+        r = "செடிகளுக்கு அதிகாலை அல்லது மாலையில் நீர் ஊற்றுவது சிறந்தது."
+    elif any(word in q for word in ["sun", "வெயில்", "ஒளி"]):
+        r = "பெரும்பாலான செடிகளுக்கு தினமும் 6 மணிநேர சூரிய ஒளி தேவை."
     elif any(word in q for word in ["fertilizer", "உரம்"]):
-        r = "10-15 நாட்களுக்கு ஒருமுறை உரம் பயன்படுத்தவும்."
+        r = "இயற்கை உரங்களான தொழு உரம் அல்லது மண்புழு உரம் பயன்படுத்தவும்."
     else:
-        r = "தயவு செய்து தண்ணீர், வெயில் அல்லது உரம் பற்றி கேளுங்கள்."
-
-    return jsonify({
-        "reply": r,
-        "audio": make_voice(r)
-    })
+        r = "மன்னிக்கவும், என்னால் நீர், வெயில் மற்றும் உரம் பற்றி மட்டுமே பதிலளிக்க முடியும்."
+        
+    return jsonify({"reply": r, "audio": make_voice(r)})
 
 @app.route("/weather")
 def weather():
     try:
-        # Open-Meteo API is reliable for free tier
-        data = requests.get(
-            "https://api.open-meteo.com/v1/forecast?latitude=13.08&longitude=80.27&current_weather=true",
-            timeout=5
-        ).json()
-        temp = data["current_weather"]["temperature"]
-        text = f"இப்போது வெப்பநிலை {temp}°C"
-        return jsonify({
-            "text": text,
-            "audio": make_voice(text)
-        })
-    except Exception:
-        return jsonify({
-            "text": "வானிலை தகவல் தற்போது கிடைக்கவில்லை",
-            "audio": make_voice("வானிலை தகவல் தற்போது கிடைக்கவில்லை")
-        })
+        res = requests.get("https://api.open-meteo.com/v1/forecast?latitude=13.08&longitude=80.27&current_weather=true").json()
+        temp = res["current_weather"]["temperature"]
+        text = f"தற்போதைய வெப்பநிலை {temp}°C"
+        return jsonify({"text": text, "audio": make_voice(text)})
+    except:
+        return jsonify({"text": "வானிலை தகவல் கிடைக்கவில்லை", "audio": ""})
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(debug=True, port=5000)
