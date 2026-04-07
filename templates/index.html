@@ -1,190 +1,134 @@
 <!DOCTYPE html>
-<html>
+<html lang="ta">
 <head>
-<meta charset="UTF-8">
-<title>Agro AI Expert</title>
-
-<style>
-body{
-margin:0;
-font-family:'Segoe UI';
-background:linear-gradient(135deg,#0f172a,#1e40af,#06b6d4);
-color:white;
-min-height:100vh;
-}
-canvas{position:fixed;top:0;left:0;z-index:-1;}
-.header{text-align:center;padding:18px;font-size:26px;font-weight:bold;}
-.container{display:flex;flex-wrap:wrap;justify-content:center;gap:20px;padding:20px;}
-.card{width:420px;background:rgba(255,255,255,0.12);backdrop-filter:blur(25px);
-border-radius:18px;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,0.5);}
-.media{text-align:center;}
-video,img{width:90%;border-radius:12px;margin-top:10px;}
-input{width:100%;padding:8px;margin-top:8px;border-radius:10px;border:none;}
-.result{margin-top:10px;background:rgba(0,0,0,0.4);padding:12px;border-radius:12px;height:180px;overflow:auto;}
-button{padding:8px 14px;margin-top:8px;border:none;border-radius:12px;
-background:linear-gradient(135deg,#7c3aed,#06b6d4);color:white;cursor:pointer;}
-.chat{height:250px;overflow:auto;background:rgba(0,0,0,0.3);border-radius:10px;padding:6px;}
-.msg{padding:8px;margin:6px;border-radius:10px;max-width:80%;}
-.user{background:#3b82f6;margin-left:auto;text-align:right;}
-.bot{background:rgba(255,255,255,0.2);}
-</style>
+    <meta charset="UTF-8">
+    <title>Agro AI Expert Pro</title>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg,#0f172a,#1e40af,#06b6d4); color: white; min-height: 100vh; }
+        .header { text-align: center; padding: 25px; font-size: 30px; font-weight: bold; }
+        .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 25px; padding: 20px; }
+        .card { width: 400px; background: rgba(255,255,255,0.1); backdrop-filter: blur(15px); border-radius: 20px; padding: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); }
+        .media img, .media video { width: 100%; border-radius: 15px; margin-top: 10px; display: none; }
+        .result { margin-top: 15px; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; height: 160px; overflow-y: auto; white-space: pre-wrap; }
+        button { padding: 10px 20px; margin-top: 10px; border: none; border-radius: 10px; background: #7c3aed; color: white; cursor: pointer; font-weight: bold; }
+        .chat-area { height: 250px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+        .msg { padding: 8px 12px; margin: 5px 0; border-radius: 10px; max-width: 80%; }
+        .user { background: #3b82f6; align-self: flex-end; margin-left: auto; }
+        .bot { background: rgba(255,255,255,0.2); }
+        input { width: 100%; padding: 10px; border-radius: 10px; border: none; margin-top: 10px; box-sizing: border-box; }
+    </style>
 </head>
-
 <body>
-
-<canvas id="bg"></canvas>
 
 <div class="header">🌱 Agro AI Expert Pro</div>
 
 <div class="container">
+    <div class="card">
+        <h3>📷 Leaf Analysis</h3>
+        <input type="file" id="leafInput" accept="image/*">
+        <div class="media"><img id="preview"></div>
+        <button onclick="analyze()">Analyze Leaf</button>
+        <button onclick="startCam()">Use Camera</button>
+        <div class="media"><video id="video" autoplay></video></div>
+        <button id="capBtn" style="display:none;" onclick="capture()">Take Photo</button>
+        <div id="resBox" class="result">Analysis results will appear here...</div>
+        <button onclick="fetchWeather()">Check Weather</button>
+        <p id="weatherInfo"></p>
+        <audio id="audioPlayer" controls style="width:100%; margin-top:10px; display:none;"></audio>
+    </div>
 
-<div class="card">
-<h3>📷 Leaf Detection</h3>
-
-<input type="file" id="img">
-<div class="media"><img id="preview"></div>
-
-<button onclick="analyze()">Analyze</button>
-<button onclick="startCamera()">Camera</button>
-
-<div class="media"><video id="video" autoplay></video></div>
-<button onclick="capture()">Capture</button>
-
-<div id="result" class="result"></div>
-
-<button onclick="getWeather()">Weather</button>
-<p id="weather"></p>
-
-<audio id="player" controls style="width:100%"></audio>
-</div>
-
-<div class="card">
-<h3>🤖 Chatbot</h3>
-
-<div id="chat" class="chat"></div>
-
-<input id="msg" placeholder="Ask something...">
-<button onclick="send()">Send</button>
-<button onclick="voice()">🎤</button>
-</div>
-
+    <div class="card">
+        <h3>🤖 Agro Chatbot</h3>
+        <div id="chatBox" class="chat-area"></div>
+        <input id="chatInp" placeholder="Ask about water, sun, or fertilizer...">
+        <button onclick="sendMessage()" style="width:100%;">Send Message</button>
+    </div>
 </div>
 
 <script>
+    const player = document.getElementById("audioPlayer");
 
-/* ✅ FIX: NO BASE URL NEEDED */
-const BASE_URL = "";
+    function play(url) {
+        if(!url) return;
+        player.src = url;
+        player.style.display = "block";
+        player.play();
+    }
 
-/* SNOW */
-let c=document.getElementById("bg");
-let ctx=c.getContext("2d");
-c.width=window.innerWidth;
-c.height=window.innerHeight;
+    // Image Analysis
+    document.getElementById("leafInput").onchange = (e) => {
+        const img = document.getElementById("preview");
+        img.src = URL.createObjectURL(e.target.files[0]);
+        img.style.display = "block";
+    };
 
-let p=[];
-for(let i=0;i<50;i++){
-p.push({x:Math.random()*c.width,y:Math.random()*c.height});
-}
+    async function analyze() {
+        const file = document.getElementById("leafInput").files[0];
+        if(!file) return alert("Select an image!");
+        const fd = new FormData();
+        fd.append("file", file);
+        
+        document.getElementById("resBox").innerText = "Processing...";
+        const res = await fetch("/predict", { method: "POST", body: fd });
+        const data = await res.json();
+        document.getElementById("resBox").innerText = data.text;
+        play(data.audio);
+    }
 
-function draw(){
-ctx.clearRect(0,0,c.width,c.height);
-ctx.fillStyle="white";
-p.forEach(a=>{
-ctx.beginPath();
-ctx.arc(a.x,a.y,2,0,Math.PI*2);
-ctx.fill();
-a.y+=0.3;
-if(a.y>c.height)a.y=0;
-});
-requestAnimationFrame(draw);
-}
-draw();
+    // Camera Logic
+    let stream;
+    async function startCam() {
+        const vid = document.getElementById("video");
+        vid.style.display = "block";
+        document.getElementById("capBtn").style.display = "block";
+        stream = await navigator.mediaDevices.getUserMedia({video: true});
+        vid.srcObject = stream;
+    }
 
-/* AUDIO */
-function playAudio(url){
-let player=document.getElementById("player");
-player.src=url;   // ✅ FIXED
-player.play().catch(()=>{});
-}
+    async function capture() {
+        const vid = document.getElementById("video");
+        const canvas = document.createElement("canvas");
+        canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
+        canvas.getContext("2d").drawImage(vid, 0, 0);
+        
+        canvas.toBlob(async (blob) => {
+            const fd = new FormData();
+            fd.append("file", new File([blob], "shot.jpg"));
+            const res = await fetch("/predict", { method: "POST", body: fd });
+            const data = await res.json();
+            document.getElementById("resBox").innerText = data.text;
+            play(data.audio);
+            stream.getTracks().forEach(t => t.stop());
+            vid.style.display = "none";
+            document.getElementById("capBtn").style.display = "none";
+        });
+    }
 
-/* PREVIEW */
-img.onchange=()=>{
-preview.src=URL.createObjectURL(img.files[0]);
-}
+    // Chatbot Logic
+    async function sendMessage() {
+        const inp = document.getElementById("chatInp");
+        const box = document.getElementById("chatBox");
+        if(!inp.value) return;
 
-/* ANALYZE */
-function analyze(){
-result.innerText="Analyzing...";
+        box.innerHTML += `<div class="msg user">${inp.value}</div>`;
+        const res = await fetch("/chat", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({msg: inp.value})
+        });
+        const data = await res.json();
+        box.innerHTML += `<div class="msg bot">${data.reply}</div>`;
+        box.scrollTop = box.scrollHeight;
+        play(data.audio);
+        inp.value = "";
+    }
 
-let f=new FormData();
-f.append("file",img.files[0]);
-
-fetch("/predict",{method:"POST",body:f})   // ✅ FIXED
-.then(r=>r.json())
-.then(d=>{
-result.innerText=d.text;
-playAudio(d.audio);
-});
-}
-
-/* CAMERA */
-let stream;
-async function startCamera(){
-stream=await navigator.mediaDevices.getUserMedia({video:true});
-video.srcObject=stream;
-}
-
-function capture(){
-let canvas=document.createElement("canvas");
-canvas.width=video.videoWidth;
-canvas.height=video.videoHeight;
-canvas.getContext("2d").drawImage(video,0,0);
-
-canvas.toBlob(b=>{
-let f=new FormData();
-f.append("file",new File([b],"img.jpg"));
-
-fetch("/predict",{method:"POST",body:f})   // ✅ FIXED
-.then(r=>r.json())
-.then(d=>{
-result.innerText=d.text;
-playAudio(d.audio);
-});
-});
-
-stream.getTracks().forEach(t=>t.stop());
-}
-
-/* CHAT */
-function send(){
-chat.innerHTML+=`<div class="msg user">${msg.value}</div>`;
-
-fetch("/chat",{   // ✅ FIXED
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({msg:msg.value})
-})
-.then(r=>r.json())
-.then(d=>{
-chat.innerHTML+=`<div class="msg bot">${d.reply}</div>`;
-chat.scrollTop=chat.scrollHeight;
-playAudio(d.audio);
-});
-
-msg.value="";
-}
-
-/* WEATHER */
-function getWeather(){
-fetch("/weather")   // ✅ FIXED
-.then(r=>r.json())
-.then(d=>{
-weather.innerText=d.text;
-playAudio(d.audio);
-});
-}
-
+    async function fetchWeather() {
+        const res = await fetch("/weather");
+        const data = await res.json();
+        document.getElementById("weatherInfo").innerText = data.text;
+        play(data.audio);
+    }
 </script>
-
 </body>
 </html>
